@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Yousuf National Bank</title>
+<meta name="description" content="Yousuf National Bank — online accounts, transfers, and loans.">
+<meta name="theme-color" content="#0f2438">
+<!-- IMPORTANT: once you deploy this to a real domain, replace every
+     "https://YOUR-DOMAIN-HERE" below with your actual live URL. Search
+     engines use this to know the canonical/official address of the site. -->
+<link rel="canonical" href="https://YOUR-DOMAIN-HERE">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta property="og:title" content="Yousuf National Bank">
+<meta property="og:description" content="Manage your accounts, transfers, and loans online.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://YOUR-DOMAIN-HERE">
+<meta property="og:image" content="https://YOUR-DOMAIN-HERE/icon-512.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Yousuf National Bank">
+<meta name="twitter:description" content="Manage your accounts, transfers, and loans online.">
+<meta name="twitter:image" content="https://YOUR-DOMAIN-HERE/icon-512.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BankOrCreditUnion",
+  "name": "Yousuf National Bank",
+  "url": "https://YOUR-DOMAIN-HERE",
+  "logo": "https://YOUR-DOMAIN-HERE/icon-512.png",
+  "description": "Online banking — accounts, transfers, and loans."
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ======================= LOGIN SCREEN ======================= -->
+  <section id="login-screen" class="login-screen">
+    <div>
+      <div class="login-mark">
+        <div class="crest">Y</div>
+        <h1>Yousuf National Bank</h1>
+        <p>Established in code &middot; Est. today</p>
+      </div>
+
+      <div class="login-card">
+        <div class="login-tabs">
+          <button class="login-tab active" data-tab="login">Sign In</button>
+          <button class="login-tab" data-tab="register">Open an Account</button>
+          <button class="login-tab" data-tab="admin">Bank Staff</button>
+        </div>
+
+        <!-- Customer login -->
+        <div class="login-pane active" id="pane-login">
+          <div class="field">
+            <label for="login-username">Username</label>
+            <input id="login-username" type="text" autocomplete="username">
+          </div>
+          <div class="field">
+            <label for="login-pin">PIN</label>
+            <input id="login-pin" type="password" autocomplete="current-password">
+          </div>
+          <button class="btn btn-primary" id="btn-login">Sign In</button>
+          <div class="status-msg" id="login-status"></div>
+        </div>
+
+        <!-- Register -->
+        <div class="login-pane" id="pane-register">
+          <div class="field">
+            <label for="reg-username">Choose a Username</label>
+            <input id="reg-username" type="text">
+          </div>
+          <div class="field">
+            <label for="reg-pin">Choose a PIN</label>
+            <input id="reg-pin" type="password">
+          </div>
+          <div class="field">
+            <label for="reg-fullname">Full Name</label>
+            <input id="reg-fullname" type="text">
+          </div>
+          <div class="field">
+            <label for="reg-email">Email</label>
+            <input id="reg-email" type="email">
+          </div>
+          <div class="field">
+            <label for="reg-phone">Phone</label>
+            <input id="reg-phone" type="text">
+          </div>
+          <button class="btn btn-primary" id="btn-register">Create Account</button>
+          <div class="status-msg" id="register-status"></div>
+        </div>
+
+        <!-- Admin login -->
+        <div class="login-pane" id="pane-admin">
+          <div class="field">
+            <label for="admin-username">Admin Username</label>
+            <input id="admin-username" type="text" value="admin">
+          </div>
+          <div class="field">
+            <label for="admin-password">Password</label>
+            <input id="admin-password" type="password">
+          </div>
+          <button class="btn btn-primary" id="btn-admin-login">Sign In as Staff</button>
+          <div class="status-msg" id="admin-status"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= APP SHELL ======================= -->
+  <div class="shell hidden" id="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="crest-sm">Y</div>
+        <h2>Yousuf</h2>
+        <div class="who" id="who-label">&nbsp;</div>
+      </div>
+
+      <nav id="nav-customer" class="hidden">
+        <div class="nav-item active" data-view="accounts"><span class="ico">◆</span><span class="label">Accounts</span></div>
+        <div class="nav-item" data-view="transactions"><span class="ico">≡</span><span class="label">Transactions</span></div>
+        <div class="nav-item" data-view="loans"><span class="ico">%</span><span class="label">Loans</span></div>
+        <div class="nav-item" data-view="profile"><span class="ico">●</span><span class="label">Profile</span></div>
+      </nav>
+
+      <nav id="nav-admin" class="hidden">
+        <div class="nav-item active" data-view="admin-customers"><span class="ico">●</span><span class="label">Customers</span></div>
+        <div class="nav-item" data-view="admin-accounts"><span class="ico">◆</span><span class="label">Accounts</span></div>
+        <div class="nav-item" data-view="admin-loans"><span class="ico">%</span><span class="label">Loans</span></div>
+        <div class="nav-item" data-view="admin-reports"><span class="ico">▤</span><span class="label">Reports</span></div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="btn btn-ghost btn-sm" style="width:100%; color:#e8e4d8; border-color:var(--navy-700);" id="btn-logout">Log Out</button>
+      </div>
+    </aside>
+
+    <main class="main">
+
+      <!-- ---------- Customer: Accounts ---------- -->
+      <section id="view-accounts" class="view">
+        <div class="page-header"><h1>Accounts</h1></div>
+        <div class="page-sub">Everything you hold with us, at a glance.</div>
+        <div class="ledger-rule"></div>
+
+        <div class="tiles" id="accounts-tiles"></div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Your Accounts</h3>
+            <div class="btn-row">
+              <button class="btn btn-brass btn-sm" id="btn-open-account">Open New Account</button>
+              <button class="btn btn-ghost btn-sm" id="btn-deposit">Deposit</button>
+              <button class="btn btn-ghost btn-sm" id="btn-withdraw">Withdraw</button>
+              <button class="btn btn-ghost btn-sm" id="btn-transfer">Transfer</button>
+            </div>
+          </div>
+          <div id="accounts-table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- ---------- Customer: Transactions ---------- -->
+      <section id="view-transactions" class="view hidden">
+        <div class="page-header"><h1>Transactions</h1></div>
+        <div class="page-sub">The full ledger for a chosen account.</div>
+        <div class="ledger-rule"></div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Account History</h3>
+            <select id="tx-account-picker" style="padding:8px 10px; border:1px solid var(--rule);"></select>
+          </div>
+          <div id="tx-table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- ---------- Customer: Loans ---------- -->
+      <section id="view-loans" class="view hidden">
+        <div class="page-header"><h1>Loans</h1></div>
+        <div class="page-sub">Apply for financing, track what you owe.</div>
+        <div class="ledger-rule"></div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Your Loans</h3>
+            <div class="btn-row">
+              <button class="btn btn-brass btn-sm" id="btn-apply-loan">Apply For Loan</button>
+              <button class="btn btn-ghost btn-sm" id="btn-repay-loan">Repay Selected</button>
+            </div>
+          </div>
+          <div id="loans-table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- ---------- Customer: Profile ---------- -->
+      <section id="view-profile" class="view hidden">
+        <div class="page-header"><h1>Profile</h1></div>
+        <div class="page-sub">Keep your details and PIN up to date.</div>
+        <div class="ledger-rule"></div>
+
+        <div class="card" style="max-width:480px;">
+          <div class="form-grid">
+            <div class="field full">
+              <label for="profile-fullname">Full Name</label>
+              <input id="profile-fullname" type="text">
+            </div>
+            <div class="field full">
+              <label for="profile-email">Email</label>
+              <input id="profile-email" type="email">
+            </div>
+            <div class="field full">
+              <label for="profile-phone">Phone</label>
+              <input id="profile-phone" type="text">
+            </div>
+          </div>
+          <button class="btn btn-brass btn-sm" id="btn-save-profile">Save Changes</button>
+        </div>
+
+        <div class="card" style="max-width:480px;">
+          <h3 style="font-family:var(--serif); margin-top:0;">Change PIN</h3>
+          <div class="field">
+            <label for="profile-newpin">New PIN</label>
+            <input id="profile-newpin" type="password">
+          </div>
+          <button class="btn btn-ghost btn-sm" id="btn-change-pin">Update PIN</button>
+        </div>
+      </section>
+
+      <!-- ---------- Admin: Customers ---------- -->
+      <section id="view-admin-customers" class="view hidden">
+        <div class="page-header"><h1>Customers</h1></div>
+        <div class="page-sub">Everyone holding an account with the bank.</div>
+        <div class="ledger-rule"></div>
+        <div class="card">
+          <div class="card-head">
+            <h3>All Customers</h3>
+            <button class="btn btn-ghost btn-sm" id="btn-toggle-lock">Lock / Unlock Selected</button>
+          </div>
+          <div id="admin-customers-table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- ---------- Admin: Accounts ---------- -->
+      <section id="view-admin-accounts" class="view hidden">
+        <div class="page-header"><h1>Accounts</h1></div>
+        <div class="page-sub">Every account across the bank.</div>
+        <div class="ledger-rule"></div>
+        <div class="card">
+          <div class="card-head">
+            <h3>All Accounts</h3>
+            <div class="btn-row">
+              <button class="btn btn-ghost btn-sm" id="btn-toggle-freeze">Freeze / Unfreeze Selected</button>
+              <button class="btn btn-brass btn-sm" id="btn-apply-interest">Apply Interest To All</button>
+            </div>
+          </div>
+          <div id="admin-accounts-table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- ---------- Admin: Loans ---------- -->
+      <section id="view-admin-loans" class="view hidden">
+        <div class="page-header"><h1>Loans</h1></div>
+        <div class="page-sub">Review and act on loan applications.</div>
+        <div class="ledger-rule"></div>
+        <div class="card">
+          <div class="card-head">
+            <h3>All Loans</h3>
+            <div class="btn-row">
+              <button class="btn btn-brass btn-sm" id="btn-approve-loan">Approve Selected</button>
+              <button class="btn btn-danger btn-sm" id="btn-reject-loan">Reject Selected</button>
+            </div>
+          </div>
+          <div id="admin-loans-table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- ---------- Admin: Reports ---------- -->
+      <section id="view-admin-reports" class="view hidden">
+        <div class="page-header"><h1>Reports</h1></div>
+        <div class="page-sub">The bank's position, at a glance.</div>
+        <div class="ledger-rule"></div>
+        <div class="tiles" id="admin-report-tiles"></div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

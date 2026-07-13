@@ -10,8 +10,7 @@ WORKDIR /app
 COPY --from=build /app/out ./out
 COPY webroot ./webroot
 
-# Persist the data file outside the container image
-VOLUME ["/app/data"]
+# Data directory persisted via a Railway Volume mounted at /app/data
 ENV BANK_DATA_DIR=/app/data
 
 EXPOSE 8080

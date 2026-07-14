@@ -1293,6 +1293,7 @@ document.getElementById('btn-run-payroll').addEventListener('click', async () =>
 
 async function loadAdminReports() {
   const data = await api('GET', '/api/admin/summary');
+  lastReportData = data;
   document.getElementById('admin-report-tiles').innerHTML = `
     <div class="tile"><div class="tile-label">Total Customers</div><div class="tile-value tabular">${data.totalCustomers}</div></div>
     <div class="tile"><div class="tile-label">Total Accounts</div><div class="tile-value tabular">${data.totalAccounts}</div></div>
@@ -1303,6 +1304,41 @@ async function loadAdminReports() {
     <div class="tile"><div class="tile-label">Total Monthly Payroll</div><div class="tile-value tabular">$${money(data.totalMonthlyPayroll)}</div></div>
   `;
 }
+
+let lastReportData = null;
+
+function openBankReport(data) {
+  const rows = [
+    ['Total Customers', data.totalCustomers],
+    ['Total Accounts', data.totalAccounts],
+    ['Total Deposits', '$' + money(data.totalDeposits)],
+    ['Loans Issued', data.totalLoans],
+    ['Outstanding Loan Balance', '$' + money(data.totalOutstandingLoans)],
+    ['Active Payroll Employees', data.totalEmployees],
+    ['Total Monthly Payroll', '$' + money(data.totalMonthlyPayroll)],
+  ];
+  const body = `
+    <div class="doc-grid">
+      <div><div class="k">Report Date</div><div class="v">${new Date().toLocaleDateString()}</div></div>
+      <div><div class="k">Report Type</div><div class="v">Bank Summary — All Branches</div></div>
+    </div>
+    <table class="doc-table">
+      <thead><tr><th>Metric</th><th class="num">Value</th></tr></thead>
+      <tbody>
+        ${rows.map(([label, value]) => `<tr><td>${label}</td><td class="num">${value}</td></tr>`).join('')}
+      </tbody>
+    </table>
+    <div class="doc-footer">
+      <div class="doc-sign"><div class="line"></div><div class="label">Prepared By — Authorized Signature</div></div>
+      <div></div>
+    </div>`;
+  openPrintable('Bank Summary Report', body);
+}
+
+document.getElementById('btn-download-report').addEventListener('click', async () => {
+  const data = lastReportData || await api('GET', '/api/admin/summary');
+  openBankReport(data);
+});
 
 // ============================================================== ADMIN: STAFF
 

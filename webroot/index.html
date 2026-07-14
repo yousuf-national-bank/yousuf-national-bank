@@ -125,7 +125,8 @@
       </div>
 
       <nav id="nav-customer" class="hidden">
-        <div class="nav-item active" data-view="accounts"><span class="ico">◆</span><span class="label">Accounts</span></div>
+        <div class="nav-item active" data-view="overview"><span class="ico">◈</span><span class="label">Overview</span></div>
+        <div class="nav-item" data-view="accounts"><span class="ico">◆</span><span class="label">Accounts</span></div>
         <div class="nav-item" data-view="transactions"><span class="ico">≡</span><span class="label">Transactions</span></div>
         <div class="nav-item" data-view="loans"><span class="ico">%</span><span class="label">Loans</span></div>
         <div class="nav-item" data-view="profile"><span class="ico">●</span><span class="label">Profile</span></div>
@@ -135,6 +136,7 @@
         <div class="nav-item active" data-view="admin-customers"><span class="ico">●</span><span class="label">Customers</span></div>
         <div class="nav-item" data-view="admin-accounts"><span class="ico">◆</span><span class="label">Accounts</span></div>
         <div class="nav-item" data-view="admin-loans"><span class="ico">%</span><span class="label">Loans</span></div>
+        <div class="nav-item" data-view="admin-payroll"><span class="ico">$</span><span class="label">Payroll</span></div>
         <div class="nav-item" data-view="admin-reports"><span class="ico">▤</span><span class="label">Reports</span></div>
       </nav>
 
@@ -145,8 +147,41 @@
 
     <main class="main">
 
+      <!-- ---------- Customer: Overview ---------- -->
+      <section id="view-overview" class="view">
+        <div class="page-header"><h1 id="overview-greeting">Welcome back</h1></div>
+        <div class="page-sub">Here's where things stand today.</div>
+        <div class="ledger-rule"></div>
+
+        <div class="overview-hero">
+          <div class="overview-balance">
+            <div class="tile-label">Total Balance Across Accounts</div>
+            <div class="overview-balance-value tabular" id="ov-total-balance">$0.00</div>
+            <div class="overview-balance-sub" id="ov-account-count">0 accounts open</div>
+          </div>
+          <canvas id="ov-chart" width="320" height="140"></canvas>
+        </div>
+
+        <div class="quick-actions">
+          <button class="quick-action" id="qa-deposit"><span class="qa-ico">↓</span>Deposit</button>
+          <button class="quick-action" id="qa-withdraw"><span class="qa-ico">↑</span>Withdraw</button>
+          <button class="quick-action" id="qa-transfer"><span class="qa-ico">⇄</span>Transfer</button>
+          <button class="quick-action" id="qa-open"><span class="qa-ico">+</span>Open Account</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Your Accounts</h3></div>
+          <div class="tiles" id="ov-account-cards"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Recent Activity</h3></div>
+          <div id="ov-recent-wrap"></div>
+        </div>
+      </section>
+
       <!-- ---------- Customer: Accounts ---------- -->
-      <section id="view-accounts" class="view">
+      <section id="view-accounts" class="view hidden">
         <div class="page-header"><h1>Accounts</h1></div>
         <div class="page-sub">Everything you hold with us, at a glance.</div>
         <div class="ledger-rule"></div>
@@ -176,7 +211,10 @@
         <div class="card">
           <div class="card-head">
             <h3>Account History</h3>
-            <select id="tx-account-picker" style="padding:8px 10px; border:1px solid var(--rule);"></select>
+            <div class="btn-row">
+              <select id="tx-account-picker" style="padding:8px 10px; border:1px solid var(--rule);"></select>
+              <button class="btn btn-ghost btn-sm" id="btn-download-statement">Download Statement</button>
+            </div>
           </div>
           <div id="tx-table-wrap"></div>
         </div>
@@ -279,6 +317,43 @@
             </div>
           </div>
           <div id="admin-loans-table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- ---------- Admin: Payroll ---------- -->
+      <section id="view-admin-payroll" class="view hidden">
+        <div class="page-header"><h1>Payroll</h1></div>
+        <div class="page-sub">Register employees against their accounts and run salary disbursements.</div>
+        <div class="ledger-rule"></div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Register an Employee</h3>
+          </div>
+          <div class="form-grid">
+            <div class="field"><label for="pr-account">Account Number</label><input id="pr-account" type="text" placeholder="e.g. ACC1001"></div>
+            <div class="field"><label for="pr-employer">Employer / Company Name</label><input id="pr-employer" type="text" placeholder="e.g. Acme Corp"></div>
+            <div class="field"><label for="pr-position">Position / Title</label><input id="pr-position" type="text" placeholder="e.g. Software Engineer"></div>
+            <div class="field"><label for="pr-salary">Monthly Salary</label><input id="pr-salary" type="number"></div>
+          </div>
+          <button class="btn btn-brass btn-sm" id="btn-add-employee">Add Employee</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Payroll Roster</h3>
+            <div class="btn-row">
+              <button class="btn btn-ghost btn-sm" id="btn-toggle-employee">Activate / Deactivate Selected</button>
+              <button class="btn btn-danger btn-sm" id="btn-remove-employee">Remove Selected</button>
+              <button class="btn btn-brass btn-sm" id="btn-run-payroll">Run Payroll</button>
+            </div>
+          </div>
+          <div id="admin-payroll-table-wrap"></div>
+        </div>
+
+        <div class="card hidden" id="payroll-results-card">
+          <div class="card-head"><h3>Last Payroll Run</h3></div>
+          <div id="payroll-results-wrap"></div>
         </div>
       </section>
 

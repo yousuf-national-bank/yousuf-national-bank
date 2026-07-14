@@ -56,6 +56,14 @@ public abstract class Account implements Serializable {
         log(TransactionType.DEPOSIT, amount, description);
     }
 
+    /** A generic credit used for money the bank itself issues (salary, refunds, etc.), tagged with its own type. */
+    public void credit(TransactionType type, double amount, String description) throws InvalidAmountException {
+        if (amount <= 0) throw new InvalidAmountException("Credit amount must be positive.");
+        if (frozen) throw new IllegalStateException("Account " + accountNumber + " is frozen.");
+        balance += amount;
+        log(type, amount, description);
+    }
+
     public void withdraw(double amount, String description) throws InvalidAmountException, InsufficientFundsException {
         if (amount <= 0) throw new InvalidAmountException("Withdrawal amount must be positive.");
         if (frozen) throw new IllegalStateException("Account " + accountNumber + " is frozen.");

@@ -347,6 +347,65 @@ button, input, select { font-family: inherit; }
 .tile .tile-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--slate); margin-bottom: 6px; }
 .tile .tile-value { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--navy-900); }
 
+/* ------------------------------------------------------------ overview page */
+
+.overview-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  background: linear-gradient(135deg, var(--navy-900), var(--navy-800));
+  border: 1px solid var(--navy-700);
+  padding: 26px 30px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+.overview-balance .tile-label { color: var(--brass-light); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+.overview-balance-value { font-family: var(--mono); font-size: 40px; font-weight: 700; color: #fff; margin: 8px 0 4px; }
+.overview-balance-sub { color: #b9c6da; font-size: 12.5px; }
+#ov-chart { max-width: 320px; width: 100%; height: auto; }
+
+.quick-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 22px; }
+.quick-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  padding: 14px 16px;
+  font-family: var(--sans);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--navy-900);
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.quick-action:hover { border-color: var(--brass); transform: translateY(-1px); }
+.quick-action .qa-ico {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--brass); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; flex-shrink: 0;
+}
+
+.recent-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0; border-bottom: 1px solid var(--rule);
+  font-size: 13.5px;
+}
+.recent-item:last-child { border-bottom: none; }
+.recent-item .recent-desc { color: var(--navy-900); }
+.recent-item .recent-meta { color: var(--slate); font-size: 11.5px; margin-top: 2px; }
+.recent-item .recent-amount { font-family: var(--mono); font-weight: 600; }
+.recent-amount.positive { color: #2e9e5b; }
+.recent-amount.negative { color: #d64545; }
+
+@media (max-width: 640px) {
+  .overview-hero { flex-direction: column; align-items: stretch; text-align: center; }
+  .overview-balance-value { font-size: 32px; }
+}
+
 /* --------------------------------------------------------------- ledger table */
 
 table.ledger { width: 100%; border-collapse: collapse; font-size: 13.5px; }

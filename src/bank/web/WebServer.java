@@ -123,6 +123,12 @@ public class WebServer {
         routes.put("POST /api/admin/accounts/apply-interest", new Route(Auth.ADMIN, WebServer::handleApplyInterest));
         routes.put("POST /api/admin/loans/approve", new Route(Auth.ADMIN, WebServer::handleApproveLoan));
         routes.put("POST /api/admin/loans/reject", new Route(Auth.ADMIN, WebServer::handleRejectLoan));
+
+        routes.put("GET /api/admin/payroll/employees", new Route(Auth.ADMIN, WebServer::handlePayrollList));
+        routes.put("POST /api/admin/payroll/employees/add", new Route(Auth.ADMIN, WebServer::handlePayrollAdd));
+        routes.put("POST /api/admin/payroll/employees/remove", new Route(Auth.ADMIN, WebServer::handlePayrollRemove));
+        routes.put("POST /api/admin/payroll/employees/toggle", new Route(Auth.ADMIN, WebServer::handlePayrollToggle));
+        routes.put("POST /api/admin/payroll/run", new Route(Auth.ADMIN, WebServer::handlePayrollRun));
     }
 
     private static void handleApi(HttpExchange ex) throws IOException {
@@ -402,6 +408,45 @@ public class WebServer {
         return Json.map("ok", true);
     }
 
+    // ------------------------------------------------------ payroll handlers
+
+    private static Map<String, Object> handlePayrollList(HttpExchange ex, Map<String, String> p, WebSession s) {
+        List<Object> list = new ArrayList<>();
+        for (Employee e : state.bank.getAllEmployees().values()) list.add(employeeJson(e));
+        return Json.map("ok", true, "employees", list);
+    }
+
+    private static Map<String, Object> handlePayrollAdd(HttpExchange ex, Map<String, String> p, WebSession s)
+            throws AccountNotFoundException {
+        Employee emp = state.bank.addEmployee(
+                require(p, "accountNumber"),
+                require(p, "employerName"),
+                require(p, "position"),
+                parseDouble(require(p, "monthlySalary")));
+        persistQuietly();
+        return Json.map("ok", true, "employee", employeeJson(emp));
+    }
+
+    private static Map<String, Object> handlePayrollRemove(HttpExchange ex, Map<String, String> p, WebSession s) {
+        state.bank.removeEmployee(require(p, "employeeId"));
+        persistQuietly();
+        return Json.map("ok", true);
+    }
+
+    private static Map<String, Object> handlePayrollToggle(HttpExchange ex, Map<String, String> p, WebSession s) {
+        state.bank.toggleEmployeeActive(require(p, "employeeId"));
+        persistQuietly();
+        return Json.map("ok", true);
+    }
+
+    private static Map<String, Object> handlePayrollRun(HttpExchange ex, Map<String, String> p, WebSession s) {
+        List<Payslip> results = state.bank.runPayroll();
+        persistQuietly();
+        List<Object> list = new ArrayList<>();
+        for (Payslip ps : results) list.add(payslipJson(ps));
+        return Json.map("ok", true, "count", results.size(), "payslips", list);
+    }
+
     // ------------------------------------------------------------- helpers
 
     private static Map<String, Object> accountJson(Account a) {
@@ -445,6 +490,33 @@ public class WebServer {
                 "email", c.getEmail(),
                 "phone", c.getPhone(),
                 "locked", c.isLocked());
+    }
+
+    private static Map<String, Object> employeeJson(Employee e) {
+        Customer c = state.bank.getCustomer(e.getCustomerUsername());
+        return Json.map(
+                "employeeId", e.getEmployeeId(),
+                "accountNumber", e.getAccountNumber(),
+                "customerUsername", e.getCustomerUsername(),
+                "employeeName", c != null ? c.getFullName() : e.getCustomerUsername(),
+                "employerName", e.getEmployerName(),
+                "position", e.getPosition(),
+                "monthlySalary", e.getMonthlySalary(),
+                "active", e.isActive(),
+                "lastPaidOn", e.getLastPaidOn() == null ? "" : e.getLastPaidOn().toString());
+    }
+
+    private static Map<String, Object> payslipJson(Payslip ps) {
+        return Json.map(
+                "voucherId", ps.getVoucherId(),
+                "employeeId", ps.getEmployeeId(),
+                "employeeName", ps.getEmployeeName(),
+                "accountNumber", ps.getAccountNumber(),
+                "employerName", ps.getEmployerName(),
+                "position", ps.getPosition(),
+                "amount", ps.getAmount(),
+                "newBalance", ps.getNewBalance(),
+                "payDate", ps.getPayDate().toString());
     }
 
     private static void persistQuietly() {

@@ -1,7 +1,10 @@
 package bank;
 
 import java.io.Serializable;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -14,9 +17,12 @@ public class Bank implements Serializable {
     private final Map<String, Account> accounts = new LinkedHashMap<>();
     private final Map<String, Loan> loans = new LinkedHashMap<>();
     private final Map<String, Admin> admins = new LinkedHashMap<>();
+    private final Map<String, Employee> employees = new LinkedHashMap<>();
 
     private final AtomicInteger accountSeq = new AtomicInteger(1000);
     private final AtomicInteger loanSeq = new AtomicInteger(500);
+    private final AtomicInteger employeeSeq = new AtomicInteger(100);
+    private final AtomicInteger voucherSeq = new AtomicInteger(9000);
 
     public Bank(String bankName) {
         this(bankName, true);
@@ -185,4 +191,55 @@ public class Bank implements Serializable {
     public String getBankName() { return bankName; }
 
     public java.util.Collection<Admin> getAllAdmins() { return admins.values(); }
+
+    // ---------- Payroll ----------
+
+    private String nextEmployeeId() { return "EMP" + employeeSeq.incrementAndGet(); }
+    private String nextVoucherId() { return "VCH" + voucherSeq.incrementAndGet(); }
+
+    public Employee addEmployee(String accountNumber, String employerName, String position, double monthlySalary)
+            throws AccountNotFoundException {
+        Account acc = getAccount(accountNumber); // throws if the account doesn't exist
+        String id = nextEmployeeId();
+        Employee emp = new Employee(id, accountNumber, acc.getOwnerUsername(), employerName, position, monthlySalary);
+        employees.put(id, emp);
+        return emp;
+    }
+
+    public Employee getEmployee(String employeeId) { return employees.get(employeeId); }
+    public Map<String, Employee> getAllEmployees() { return employees; }
+
+    public void removeEmployee(String employeeId) {
+        if (employees.remove(employeeId) == null) throw new IllegalArgumentException("No such employee: " + employeeId);
+    }
+
+    public void toggleEmployeeActive(String employeeId) {
+        Employee e = employees.get(employeeId);
+        if (e == null) throw new IllegalArgumentException("No such employee: " + employeeId);
+        e.setActive(!e.isActive());
+    }
+
+    /** Credits salary to every active employee's account. Frozen accounts are skipped, not failed. */
+    public List<Payslip> runPayroll() {
+        List<Payslip> payslips = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+        for (Employee emp : employees.values()) {
+            if (!emp.isActive()) continue;
+            Account acc = accounts.get(emp.getAccountNumber());
+            if (acc == null || acc.isFrozen()) continue; // can't pay into a missing/frozen account
+            String voucherId = nextVoucherId();
+            try {
+                acc.credit(TransactionType.SALARY_CREDIT, emp.getMonthlySalary(),
+                        "Salary from " + emp.getEmployerName() + " (" + voucherId + ")");
+            } catch (InvalidAmountException e) {
+                continue; // a zero/negative salary was configured — skip rather than fail the whole run
+            }
+            emp.markPaid(today);
+            Customer cust = customers.get(emp.getCustomerUsername());
+            String employeeName = cust != null ? cust.getFullName() : emp.getCustomerUsername();
+            payslips.add(new Payslip(voucherId, emp.getEmployeeId(), employeeName, emp.getAccountNumber(),
+                    emp.getEmployerName(), emp.getPosition(), emp.getMonthlySalary(), acc.getBalance(), today));
+        }
+        return payslips;
+    }
 }

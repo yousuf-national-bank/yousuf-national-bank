@@ -8,5 +8,6 @@ public enum TransactionType {
     INTEREST_CREDIT,
     LOAN_DISBURSEMENT,
     LOAN_REPAYMENT,
+    SALARY_CREDIT,
     FEE
 }

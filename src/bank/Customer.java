@@ -15,6 +15,7 @@ public class Customer implements Serializable {
     private final List<String> accountNumbers = new ArrayList<>();
     private final List<String> loanIds = new ArrayList<>();
     private boolean locked = false;
+    private int failedPinAttempts = 0;
 
     public Customer(String username, String pin, String fullName, String email, String phone) {
         this(username, pin, fullName, email, phone, false, false);
@@ -51,6 +52,10 @@ public class Customer implements Serializable {
     public List<String> getLoanIds() { return loanIds; }
     public boolean isLocked() { return locked; }
     public void setLocked(boolean locked) { this.locked = locked; }
+
+    public int getFailedPinAttempts() { return failedPinAttempts; }
+    public void recordFailedAttempt() { failedPinAttempts++; }
+    public void resetFailedAttempts() { failedPinAttempts = 0; }
 
     /** Exposes the stored hash only for writing to persistent storage — never for display or comparison. */
     public String getPinHashForPersistence() { return pinHash; }

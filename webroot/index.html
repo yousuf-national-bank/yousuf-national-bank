@@ -55,7 +55,8 @@
         <div class="login-tabs">
           <button class="login-tab active" data-tab="login">Sign In</button>
           <button class="login-tab" data-tab="register">Open an Account</button>
-          <button class="login-tab" data-tab="admin">Bank Staff</button>
+          <button class="login-tab" data-tab="staff">Staff Login</button>
+          <button class="login-tab" data-tab="admin">Admin Login</button>
         </div>
 
         <!-- Customer login -->
@@ -98,8 +99,24 @@
           <div class="status-msg" id="register-status"></div>
         </div>
 
+        <!-- Staff (Teller) login -->
+        <div class="login-pane" id="pane-staff">
+          <p class="page-sub" style="margin:0 0 14px;">For front-desk staff — customer service, deposits, account status.</p>
+          <div class="field">
+            <label for="staff-username">Staff Username</label>
+            <input id="staff-username" type="text">
+          </div>
+          <div class="field">
+            <label for="staff-password">Password</label>
+            <input id="staff-password" type="password">
+          </div>
+          <button class="btn btn-primary" id="btn-staff-login">Sign In as Staff</button>
+          <div class="status-msg" id="staff-status"></div>
+        </div>
+
         <!-- Admin login -->
         <div class="login-pane" id="pane-admin">
+          <p class="page-sub" style="margin:0 0 14px;">For bank managers — loans, payroll, interest, and staff accounts.</p>
           <div class="field">
             <label for="admin-username">Admin Username</label>
             <input id="admin-username" type="text" value="admin">
@@ -108,7 +125,7 @@
             <label for="admin-password">Password</label>
             <input id="admin-password" type="password">
           </div>
-          <button class="btn btn-primary" id="btn-admin-login">Sign In as Staff</button>
+          <button class="btn btn-primary" id="btn-admin-login">Sign In as Admin</button>
           <div class="status-msg" id="admin-status"></div>
         </div>
       </div>
@@ -129,14 +146,19 @@
         <div class="nav-item" data-view="accounts"><span class="ico">◆</span><span class="label">Accounts</span></div>
         <div class="nav-item" data-view="transactions"><span class="ico">≡</span><span class="label">Transactions</span></div>
         <div class="nav-item" data-view="loans"><span class="ico">%</span><span class="label">Loans</span></div>
+        <div class="nav-item" data-view="beneficiaries"><span class="ico">☺</span><span class="label">Payees</span></div>
+        <div class="nav-item" data-view="standing-orders"><span class="ico">⟳</span><span class="label">Standing Orders</span></div>
         <div class="nav-item" data-view="profile"><span class="ico">●</span><span class="label">Profile</span></div>
       </nav>
 
       <nav id="nav-admin" class="hidden">
-        <div class="nav-item active" data-view="admin-customers"><span class="ico">●</span><span class="label">Customers</span></div>
+        <div class="nav-item active" data-view="admin-overview"><span class="ico">◈</span><span class="label">Overview</span></div>
+        <div class="nav-item" data-view="admin-customers"><span class="ico">●</span><span class="label">Customers</span></div>
         <div class="nav-item" data-view="admin-accounts"><span class="ico">◆</span><span class="label">Accounts</span></div>
-        <div class="nav-item" data-view="admin-loans"><span class="ico">%</span><span class="label">Loans</span></div>
-        <div class="nav-item" data-view="admin-payroll"><span class="ico">$</span><span class="label">Payroll</span></div>
+        <div class="nav-item admin-only" data-view="admin-loans"><span class="ico">%</span><span class="label">Loans</span></div>
+        <div class="nav-item admin-only" data-view="admin-payroll"><span class="ico">$</span><span class="label">Payroll</span></div>
+        <div class="nav-item admin-only" data-view="admin-staff"><span class="ico">⚿</span><span class="label">Staff</span></div>
+        <div class="nav-item admin-only" data-view="admin-audit"><span class="ico">▥</span><span class="label">Audit Log</span></div>
         <div class="nav-item" data-view="admin-reports"><span class="ico">▤</span><span class="label">Reports</span></div>
       </nav>
 
@@ -167,7 +189,11 @@
           <button class="quick-action" id="qa-withdraw"><span class="qa-ico">↑</span>Withdraw</button>
           <button class="quick-action" id="qa-transfer"><span class="qa-ico">⇄</span>Transfer</button>
           <button class="quick-action" id="qa-open"><span class="qa-ico">+</span>Open Account</button>
+          <button class="quick-action" id="qa-loan"><span class="qa-ico">%</span>Apply for Loan</button>
+          <button class="quick-action" id="qa-statement"><span class="qa-ico">▤</span>Statement</button>
         </div>
+
+        <div class="tiles" id="ov-summary-tiles"></div>
 
         <div class="card">
           <div class="card-head"><h3>Your Accounts</h3></div>
@@ -196,6 +222,7 @@
               <button class="btn btn-ghost btn-sm" id="btn-deposit">Deposit</button>
               <button class="btn btn-ghost btn-sm" id="btn-withdraw">Withdraw</button>
               <button class="btn btn-ghost btn-sm" id="btn-transfer">Transfer</button>
+              <button class="btn btn-danger btn-sm" id="btn-close-account">Close Account</button>
             </div>
           </div>
           <div id="accounts-table-wrap"></div>
@@ -214,6 +241,7 @@
             <div class="btn-row">
               <select id="tx-account-picker" style="padding:8px 10px; border:1px solid var(--rule);"></select>
               <button class="btn btn-ghost btn-sm" id="btn-download-statement">Download Statement</button>
+              <button class="btn btn-ghost btn-sm" id="btn-download-csv">Export CSV</button>
             </div>
           </div>
           <div id="tx-table-wrap"></div>
@@ -235,6 +263,58 @@
             </div>
           </div>
           <div id="loans-table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- ---------- Customer: Payees (Beneficiaries) ---------- -->
+      <section id="view-beneficiaries" class="view hidden">
+        <div class="page-header"><h1>Saved Payees</h1></div>
+        <div class="page-sub">Save an account once, then pick it by name for future transfers instead of retyping it.</div>
+        <div class="ledger-rule"></div>
+
+        <div class="card">
+          <div class="card-head"><h3>Add a Payee</h3></div>
+          <div class="form-grid">
+            <div class="field"><label for="ben-nickname">Nickname</label><input id="ben-nickname" type="text" placeholder="e.g. Landlord, Mom, Electric Company"></div>
+            <div class="field"><label for="ben-account">Account Number</label><input id="ben-account" type="text" placeholder="e.g. ACC1002"></div>
+          </div>
+          <button class="btn btn-brass btn-sm" id="btn-add-beneficiary">Save Payee</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Your Saved Payees</h3></div>
+          <div id="beneficiaries-table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- ---------- Customer: Standing Orders ---------- -->
+      <section id="view-standing-orders" class="view hidden">
+        <div class="page-header"><h1>Standing Orders</h1></div>
+        <div class="page-sub">Recurring payments the bank sends automatically, on schedule, without you doing anything each time.</div>
+        <div class="ledger-rule"></div>
+
+        <div class="card">
+          <div class="card-head"><h3>Set Up a Standing Order</h3></div>
+          <div class="form-grid">
+            <div class="field"><label for="so-from">From Account</label><select id="so-from"></select></div>
+            <div class="field"><label for="so-to">To Account Number</label><input id="so-to" type="text" placeholder="e.g. ACC1002"></div>
+            <div class="field"><label for="so-amount">Amount</label><input id="so-amount" type="number"></div>
+            <div class="field"><label for="so-frequency">Frequency</label>
+              <select id="so-frequency">
+                <option value="MONTHLY">Monthly</option>
+                <option value="WEEKLY">Weekly</option>
+                <option value="DAILY">Daily</option>
+              </select>
+            </div>
+            <div class="field"><label for="so-start">Start Date</label><input id="so-start" type="date"></div>
+            <div class="field"><label for="so-note">Note (optional)</label><input id="so-note" type="text" placeholder="e.g. Rent"></div>
+          </div>
+          <button class="btn btn-brass btn-sm" id="btn-create-standing-order">Create Standing Order</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Your Standing Orders</h3></div>
+          <div id="standing-orders-table-wrap"></div>
         </div>
       </section>
 
@@ -272,6 +352,27 @@
         </div>
       </section>
 
+      <!-- ---------- Admin: Overview ---------- -->
+      <section id="view-admin-overview" class="view">
+        <div class="page-header"><h1>Bank Overview</h1></div>
+        <div class="page-sub">Everything happening across the bank, at a glance.</div>
+        <div class="ledger-rule"></div>
+
+        <div class="tiles" id="admin-ov-tiles"></div>
+
+        <div class="quick-actions">
+          <button class="quick-action" data-jump="admin-customers"><span class="qa-ico">●</span>Customers</button>
+          <button class="quick-action" data-jump="admin-accounts"><span class="qa-ico">◆</span>Accounts</button>
+          <button class="quick-action" data-jump="admin-loans"><span class="qa-ico">%</span>Review Loans</button>
+          <button class="quick-action" data-jump="admin-payroll"><span class="qa-ico">$</span>Run Payroll</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Recent Activity Across the Bank</h3></div>
+          <div id="admin-ov-recent-wrap"></div>
+        </div>
+      </section>
+
       <!-- ---------- Admin: Customers ---------- -->
       <section id="view-admin-customers" class="view hidden">
         <div class="page-header"><h1>Customers</h1></div>
@@ -280,6 +381,7 @@
         <div class="card">
           <div class="card-head">
             <h3>All Customers</h3>
+            <input type="text" id="customers-filter" placeholder="Filter customers..." style="padding:8px 10px; border:1px solid var(--rule);">
             <button class="btn btn-ghost btn-sm" id="btn-toggle-lock">Lock / Unlock Selected</button>
           </div>
           <div id="admin-customers-table-wrap"></div>
@@ -294,6 +396,7 @@
         <div class="card">
           <div class="card-head">
             <h3>All Accounts</h3>
+            <input type="text" id="admin-accounts-filter" placeholder="Filter accounts..." style="padding:8px 10px; border:1px solid var(--rule);">
             <div class="btn-row">
               <button class="btn btn-ghost btn-sm" id="btn-toggle-freeze">Freeze / Unfreeze Selected</button>
               <button class="btn btn-brass btn-sm" id="btn-apply-interest">Apply Interest To All</button>
@@ -311,6 +414,7 @@
         <div class="card">
           <div class="card-head">
             <h3>All Loans</h3>
+            <input type="text" id="admin-loans-filter" placeholder="Filter loans..." style="padding:8px 10px; border:1px solid var(--rule);">
             <div class="btn-row">
               <button class="btn btn-brass btn-sm" id="btn-approve-loan">Approve Selected</button>
               <button class="btn btn-danger btn-sm" id="btn-reject-loan">Reject Selected</button>
@@ -330,9 +434,15 @@
           <div class="card-head">
             <h3>Register an Employee</h3>
           </div>
+          <div class="page-sub" style="margin-bottom:14px;">
+            Salary is paid <strong>from</strong> the employer's own account <strong>to</strong> the employee's
+            account — pick both from the bank's real accounts below. If the employer doesn't have an account
+            yet, register them as a customer and open one first (e.g. a Checking account funded with the
+            company's capital).
+          </div>
           <div class="form-grid">
-            <div class="field"><label for="pr-account">Account Number</label><input id="pr-account" type="text" placeholder="e.g. ACC1001"></div>
-            <div class="field"><label for="pr-employer">Employer / Company Name</label><input id="pr-employer" type="text" placeholder="e.g. Acme Corp"></div>
+            <div class="field"><label for="pr-employee-account">Employee's Account (receives salary)</label><select id="pr-employee-account"></select></div>
+            <div class="field"><label for="pr-employer-account">Employer's Account (pays salary)</label><select id="pr-employer-account"></select></div>
             <div class="field"><label for="pr-position">Position / Title</label><input id="pr-position" type="text" placeholder="e.g. Software Engineer"></div>
             <div class="field"><label for="pr-salary">Monthly Salary</label><input id="pr-salary" type="number"></div>
           </div>
@@ -354,6 +464,51 @@
         <div class="card hidden" id="payroll-results-card">
           <div class="card-head"><h3>Last Payroll Run</h3></div>
           <div id="payroll-results-wrap"></div>
+        </div>
+      </section>
+
+      <!-- ---------- Admin: Staff ---------- -->
+      <section id="view-admin-staff" class="view hidden">
+        <div class="page-header"><h1>Staff Accounts</h1></div>
+        <div class="page-sub">Manage who can sign in as Teller or Admin.</div>
+        <div class="ledger-rule"></div>
+
+        <div class="card">
+          <div class="card-head"><h3>Add a Staff Login</h3></div>
+          <div class="form-grid">
+            <div class="field"><label for="st-username">Username</label><input id="st-username" type="text"></div>
+            <div class="field"><label for="st-password">Password</label><input id="st-password" type="password"></div>
+            <div class="field"><label for="st-role">Role</label>
+              <select id="st-role">
+                <option value="TELLER">Teller — front-desk, customer service</option>
+                <option value="ADMIN">Admin — full access, loans, payroll, staff</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-brass btn-sm" id="btn-add-staff">Add Staff Login</button>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>All Staff Logins</h3>
+            <input type="text" id="staff-filter" placeholder="Filter staff..." style="padding:8px 10px; border:1px solid var(--rule);">
+            <button class="btn btn-danger btn-sm" id="btn-remove-staff">Remove Selected</button>
+          </div>
+          <div id="admin-staff-table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- ---------- Admin: Audit Log ---------- -->
+      <section id="view-admin-audit" class="view hidden">
+        <div class="page-header"><h1>Audit Log</h1></div>
+        <div class="page-sub">Every sensitive staff action, for accountability — who did what, and when.</div>
+        <div class="ledger-rule"></div>
+        <div class="card">
+          <div class="card-head">
+            <h3>Recent Actions</h3>
+            <input type="text" id="audit-filter" placeholder="Filter by actor or action..." style="padding:8px 10px; border:1px solid var(--rule); min-width:220px;">
+          </div>
+          <div id="admin-audit-table-wrap"></div>
         </div>
       </section>
 

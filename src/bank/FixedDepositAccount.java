@@ -35,12 +35,12 @@ public class FixedDepositAccount extends Account {
     public int getTermMonths() { return termMonths; }
 
     @Override
-    public void withdraw(double amount, String description) throws InvalidAmountException, InsufficientFundsException {
+    public void withdraw(TransactionType type, double amount, String description) throws InvalidAmountException, InsufficientFundsException {
         if (!isMatured()) {
             throw new IllegalStateException(
                     "Fixed deposit " + accountNumber + " has not matured yet (matures " + maturityDate + ").");
         }
-        super.withdraw(amount, description);
+        super.withdraw(type, amount, description);
     }
 
     @Override

@@ -55,6 +55,27 @@ public class WebServer {
         server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(8));
         server.start();
 
+        // Background scheduler: automatically runs any due standing orders (recurring
+        // payments) without anyone needing to click a button. Checks every 5 minutes —
+        // harmless to check often since it only acts on orders whose date has arrived.
+        java.util.concurrent.ScheduledExecutorService scheduler =
+                java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                    Thread t = new Thread(r, "standing-order-scheduler");
+                    t.setDaemon(true);
+                    return t;
+                });
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                java.util.List<String> ran = state.bank.runDueStandingOrders();
+                if (!ran.isEmpty()) {
+                    persistQuietly();
+                    System.out.println("[standing orders] processed " + ran.size() + " due payment(s).");
+                }
+            } catch (Exception e) {
+                System.err.println("[standing orders] scheduler error: " + e.getMessage());
+            }
+        }, 5, 30, java.util.concurrent.TimeUnit.SECONDS);
+
         System.out.println("=================================================");
         System.out.println(" Yousuf National Bank web server is running!");
         System.out.println();
@@ -105,11 +126,20 @@ public class WebServer {
         routes.put("POST /api/accounts/deposit", new Route(Auth.CUSTOMER, WebServer::handleDeposit));
         routes.put("POST /api/accounts/withdraw", new Route(Auth.CUSTOMER, WebServer::handleWithdraw));
         routes.put("POST /api/accounts/transfer", new Route(Auth.CUSTOMER, WebServer::handleTransfer));
+        routes.put("POST /api/accounts/close", new Route(Auth.CUSTOMER, WebServer::handleCloseAccount));
         routes.put("GET /api/transactions", new Route(Auth.CUSTOMER, WebServer::handleTransactions));
 
         routes.put("GET /api/loans", new Route(Auth.CUSTOMER, WebServer::handleListLoans));
         routes.put("POST /api/loans/apply", new Route(Auth.CUSTOMER, WebServer::handleApplyLoan));
         routes.put("POST /api/loans/repay", new Route(Auth.CUSTOMER, WebServer::handleRepayLoan));
+
+        routes.put("GET /api/beneficiaries", new Route(Auth.CUSTOMER, WebServer::handleListBeneficiaries));
+        routes.put("POST /api/beneficiaries/add", new Route(Auth.CUSTOMER, WebServer::handleAddBeneficiary));
+        routes.put("POST /api/beneficiaries/remove", new Route(Auth.CUSTOMER, WebServer::handleRemoveBeneficiary));
+
+        routes.put("GET /api/standing-orders", new Route(Auth.CUSTOMER, WebServer::handleListStandingOrders));
+        routes.put("POST /api/standing-orders/create", new Route(Auth.CUSTOMER, WebServer::handleCreateStandingOrder));
+        routes.put("POST /api/standing-orders/cancel", new Route(Auth.CUSTOMER, WebServer::handleCancelStandingOrder));
 
         routes.put("POST /api/profile/update", new Route(Auth.CUSTOMER, WebServer::handleUpdateProfile));
         routes.put("POST /api/profile/change-pin", new Route(Auth.CUSTOMER, WebServer::handleChangePin));
@@ -118,6 +148,7 @@ public class WebServer {
         routes.put("GET /api/admin/accounts", new Route(Auth.ADMIN, WebServer::handleAdminAccounts));
         routes.put("GET /api/admin/loans", new Route(Auth.ADMIN, WebServer::handleAdminLoans));
         routes.put("GET /api/admin/summary", new Route(Auth.ADMIN, WebServer::handleAdminSummary));
+        routes.put("GET /api/admin/recent-activity", new Route(Auth.ADMIN, WebServer::handleAdminRecentActivity));
         routes.put("POST /api/admin/customers/toggle-lock", new Route(Auth.ADMIN, WebServer::handleToggleLock));
         routes.put("POST /api/admin/accounts/toggle-freeze", new Route(Auth.ADMIN, WebServer::handleToggleFreeze));
         routes.put("POST /api/admin/accounts/apply-interest", new Route(Auth.ADMIN, WebServer::handleApplyInterest));
@@ -129,6 +160,11 @@ public class WebServer {
         routes.put("POST /api/admin/payroll/employees/remove", new Route(Auth.ADMIN, WebServer::handlePayrollRemove));
         routes.put("POST /api/admin/payroll/employees/toggle", new Route(Auth.ADMIN, WebServer::handlePayrollToggle));
         routes.put("POST /api/admin/payroll/run", new Route(Auth.ADMIN, WebServer::handlePayrollRun));
+
+        routes.put("GET /api/admin/staff", new Route(Auth.ADMIN, WebServer::handleStaffList));
+        routes.put("POST /api/admin/staff/add", new Route(Auth.ADMIN, WebServer::handleStaffAdd));
+        routes.put("POST /api/admin/staff/remove", new Route(Auth.ADMIN, WebServer::handleStaffRemove));
+        routes.put("GET /api/admin/audit-log", new Route(Auth.ADMIN, WebServer::handleAuditLog));
     }
 
     private static void handleApi(HttpExchange ex) throws IOException {
@@ -185,9 +221,11 @@ public class WebServer {
     private static Map<String, Object> handleAdminLogin(HttpExchange ex, Map<String, String> p, WebSession s) throws AuthenticationException {
         Admin a = state.bank.loginAdmin(require(p, "username"), require(p, "password"));
         String token = newToken();
-        sessions.put(token, new WebSession(token, WebSession.Role.ADMIN, a.getUsername()));
+        sessions.put(token, new WebSession(token, WebSession.Role.ADMIN, a.getUsername(), a.getRole()));
         setSessionCookie(ex, token);
-        return Json.map("ok", true, "username", a.getUsername());
+        state.bank.logAudit(a.getUsername(), a.getRole(), "LOGIN", "Signed in");
+        persistQuietly();
+        return Json.map("ok", true, "username", a.getUsername(), "staffRole", a.getRole().name());
     }
 
     private static Map<String, Object> handleLogout(HttpExchange ex, Map<String, String> p, WebSession s) {
@@ -199,7 +237,8 @@ public class WebServer {
     private static Map<String, Object> handleMe(HttpExchange ex, Map<String, String> p, WebSession s) {
         if (s == null) return Json.map("ok", true, "loggedIn", false);
         if (s.role == WebSession.Role.ADMIN) {
-            return Json.map("ok", true, "loggedIn", true, "role", "ADMIN", "username", s.username);
+            return Json.map("ok", true, "loggedIn", true, "role", "ADMIN", "username", s.username,
+                    "staffRole", s.staffRole == null ? "ADMIN" : s.staffRole.name());
         }
         Customer c = state.bank.getCustomer(s.username);
         return Json.map("ok", true, "loggedIn", true, "role", "CUSTOMER", "username", s.username,
@@ -267,7 +306,14 @@ public class WebServer {
         String accNo = require(p, "accountNumber");
         requireOwnAccount(c, accNo);
         Account acc = state.bank.getAccount(accNo);
-        acc.withdraw(parseDouble(require(p, "amount")), "Withdrawal via web");
+        double amount = parseDouble(require(p, "amount"));
+        double alreadyToday = state.bank.todaysWithdrawalTotal(acc);
+        if (alreadyToday + amount > Bank.DAILY_WITHDRAWAL_LIMIT) {
+            throw new IllegalArgumentException(String.format(
+                    "Daily withdrawal limit of $%.2f exceeded. You've already withdrawn $%.2f today.",
+                    Bank.DAILY_WITHDRAWAL_LIMIT, alreadyToday));
+        }
+        acc.withdraw(amount, "Withdrawal via web");
         persistQuietly();
         return Json.map("ok", true, "newBalance", acc.getBalance());
     }
@@ -277,8 +323,25 @@ public class WebServer {
         Customer c = currentCustomer(s);
         String fromAcc = require(p, "fromAccount");
         requireOwnAccount(c, fromAcc);
-        state.bank.transfer(fromAcc, require(p, "toAccount"), parseDouble(require(p, "amount")),
-                p.getOrDefault("note", ""));
+        Account from = state.bank.getAccount(fromAcc);
+        double amount = parseDouble(require(p, "amount"));
+        double alreadyToday = state.bank.todaysTransferTotal(from);
+        if (alreadyToday + amount > Bank.DAILY_TRANSFER_LIMIT) {
+            throw new IllegalArgumentException(String.format(
+                    "Daily transfer limit of $%.2f exceeded. You've already transferred $%.2f today.",
+                    Bank.DAILY_TRANSFER_LIMIT, alreadyToday));
+        }
+        state.bank.transfer(fromAcc, require(p, "toAccount"), amount, p.getOrDefault("note", ""));
+        persistQuietly();
+        return Json.map("ok", true);
+    }
+
+    private static Map<String, Object> handleCloseAccount(HttpExchange ex, Map<String, String> p, WebSession s)
+            throws AccountNotFoundException {
+        Customer c = currentCustomer(s);
+        String accNo = require(p, "accountNumber");
+        requireOwnAccount(c, accNo);
+        state.bank.closeAccount(accNo);
         persistQuietly();
         return Json.map("ok", true);
     }
@@ -328,6 +391,88 @@ public class WebServer {
         return Json.map("ok", true, "loan", loanJson(loan));
     }
 
+    // ---------------------------------------------------- beneficiary handlers
+
+    private static Map<String, Object> handleListBeneficiaries(HttpExchange ex, Map<String, String> p, WebSession s) {
+        Customer c = currentCustomer(s);
+        List<Object> list = new ArrayList<>();
+        for (Beneficiary b : state.bank.getBeneficiariesFor(c.getUsername())) list.add(beneficiaryJson(b));
+        return Json.map("ok", true, "beneficiaries", list);
+    }
+
+    private static Map<String, Object> handleAddBeneficiary(HttpExchange ex, Map<String, String> p, WebSession s)
+            throws AccountNotFoundException {
+        Customer c = currentCustomer(s);
+        Beneficiary b = state.bank.addBeneficiary(c.getUsername(), require(p, "nickname"), require(p, "accountNumber"));
+        persistQuietly();
+        return Json.map("ok", true, "beneficiary", beneficiaryJson(b));
+    }
+
+    private static Map<String, Object> handleRemoveBeneficiary(HttpExchange ex, Map<String, String> p, WebSession s) {
+        Customer c = currentCustomer(s);
+        state.bank.removeBeneficiary(c.getUsername(), require(p, "beneficiaryId"));
+        persistQuietly();
+        return Json.map("ok", true);
+    }
+
+    // ------------------------------------------------- standing order handlers
+
+    private static Map<String, Object> handleListStandingOrders(HttpExchange ex, Map<String, String> p, WebSession s) {
+        Customer c = currentCustomer(s);
+        List<Object> list = new ArrayList<>();
+        for (StandingOrder so : state.bank.getStandingOrdersFor(c.getUsername())) list.add(standingOrderJson(so));
+        return Json.map("ok", true, "standingOrders", list);
+    }
+
+    private static Map<String, Object> handleCreateStandingOrder(HttpExchange ex, Map<String, String> p, WebSession s)
+            throws AccountNotFoundException {
+        Customer c = currentCustomer(s);
+        String fromAcc = require(p, "fromAccount");
+        requireOwnAccount(c, fromAcc);
+        Frequency freq;
+        try {
+            freq = Frequency.valueOf(require(p, "frequency").toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Frequency must be DAILY, WEEKLY, or MONTHLY.");
+        }
+        java.time.LocalDate startDate;
+        try {
+            startDate = java.time.LocalDate.parse(require(p, "startDate"));
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Start date must be in YYYY-MM-DD format.");
+        }
+        StandingOrder so = state.bank.createStandingOrder(c.getUsername(), fromAcc, require(p, "toAccount"),
+                parseDouble(require(p, "amount")), p.getOrDefault("note", ""), freq, startDate);
+        persistQuietly();
+        return Json.map("ok", true, "standingOrder", standingOrderJson(so));
+    }
+
+    private static Map<String, Object> handleCancelStandingOrder(HttpExchange ex, Map<String, String> p, WebSession s) {
+        Customer c = currentCustomer(s);
+        state.bank.cancelStandingOrder(c.getUsername(), require(p, "standingOrderId"));
+        persistQuietly();
+        return Json.map("ok", true);
+    }
+
+    private static Map<String, Object> beneficiaryJson(Beneficiary b) {
+        return Json.map("id", b.getId(), "nickname", b.getNickname(), "accountNumber", b.getAccountNumber(),
+                "addedOn", b.getAddedOn().toString());
+    }
+
+    private static Map<String, Object> standingOrderJson(StandingOrder so) {
+        return Json.map(
+                "id", so.getId(),
+                "fromAccount", so.getFromAccount(),
+                "toAccount", so.getToAccount(),
+                "amount", so.getAmount(),
+                "note", so.getNote(),
+                "frequency", so.getFrequency().name(),
+                "nextRunDate", so.getNextRunDate().toString(),
+                "active", so.isActive(),
+                "timesRun", so.getTimesRun(),
+                "lastResult", so.getLastResult() == null ? "" : so.getLastResult());
+    }
+
     private static Map<String, Object> handleUpdateProfile(HttpExchange ex, Map<String, String> p, WebSession s) {
         Customer c = currentCustomer(s);
         if (p.containsKey("fullName")) c.setFullName(p.get("fullName"));
@@ -366,18 +511,40 @@ public class WebServer {
     }
 
     private static Map<String, Object> handleAdminSummary(HttpExchange ex, Map<String, String> p, WebSession s) {
+        double totalMonthlyPayroll = state.bank.getAllEmployees().values().stream()
+                .filter(Employee::isActive).mapToDouble(Employee::getMonthlySalary).sum();
+        long activeEmployees = state.bank.getAllEmployees().values().stream().filter(Employee::isActive).count();
         return Json.map("ok", true,
                 "totalCustomers", state.bank.getAllCustomers().size(),
                 "totalAccounts", state.bank.getAllAccounts().size(),
                 "totalDeposits", state.bank.getTotalDeposits(),
                 "totalLoans", state.bank.getAllLoans().size(),
-                "totalOutstandingLoans", state.bank.getTotalOutstandingLoans());
+                "totalOutstandingLoans", state.bank.getTotalOutstandingLoans(),
+                "totalEmployees", activeEmployees,
+                "totalMonthlyPayroll", totalMonthlyPayroll);
+    }
+
+    private static Map<String, Object> handleAdminRecentActivity(HttpExchange ex, Map<String, String> p, WebSession s) {
+        List<Map<String, Object>> all = new ArrayList<>();
+        for (Account a : state.bank.getAllAccounts().values()) {
+            for (Transaction t : a.getTransactions()) {
+                Map<String, Object> m = transactionJson(t);
+                m.put("accountNumber", a.getAccountNumber());
+                m.put("owner", a.getOwnerUsername());
+                all.add(m);
+            }
+        }
+        all.sort((x, y) -> String.valueOf(y.get("timestamp")).compareTo(String.valueOf(x.get("timestamp"))));
+        List<Object> top = new ArrayList<>(all.subList(0, Math.min(10, all.size())));
+        return Json.map("ok", true, "activity", top);
     }
 
     private static Map<String, Object> handleToggleLock(HttpExchange ex, Map<String, String> p, WebSession s) {
         Customer c = state.bank.getCustomer(require(p, "username"));
         if (c == null) throw new IllegalArgumentException("No such customer.");
         c.setLocked(!c.isLocked());
+        if (!c.isLocked()) c.resetFailedAttempts(); // unlocking also clears the failed-attempt counter
+        state.bank.logAudit(s.username, s.staffRole, c.isLocked() ? "LOCK_CUSTOMER" : "UNLOCK_CUSTOMER", c.getUsername());
         persistQuietly();
         return Json.map("ok", true, "locked", c.isLocked());
     }
@@ -385,25 +552,34 @@ public class WebServer {
     private static Map<String, Object> handleToggleFreeze(HttpExchange ex, Map<String, String> p, WebSession s) throws AccountNotFoundException {
         Account a = state.bank.getAccount(require(p, "accountNumber"));
         a.setFrozen(!a.isFrozen());
+        state.bank.logAudit(s.username, s.staffRole, a.isFrozen() ? "FREEZE_ACCOUNT" : "UNFREEZE_ACCOUNT", a.getAccountNumber());
         persistQuietly();
         return Json.map("ok", true, "frozen", a.isFrozen());
     }
 
     private static Map<String, Object> handleApplyInterest(HttpExchange ex, Map<String, String> p, WebSession s) {
+        requireFullAdmin(s);
         state.bank.applyInterestToAll();
+        state.bank.logAudit(s.username, s.staffRole, "APPLY_INTEREST", "Applied to all eligible accounts");
         persistQuietly();
         return Json.map("ok", true);
     }
 
     private static Map<String, Object> handleApproveLoan(HttpExchange ex, Map<String, String> p, WebSession s)
             throws AccountNotFoundException, InvalidAmountException {
-        state.bank.approveLoan(require(p, "loanId"));
+        requireFullAdmin(s);
+        String loanId = require(p, "loanId");
+        state.bank.approveLoan(loanId);
+        state.bank.logAudit(s.username, s.staffRole, "APPROVE_LOAN", loanId);
         persistQuietly();
         return Json.map("ok", true);
     }
 
     private static Map<String, Object> handleRejectLoan(HttpExchange ex, Map<String, String> p, WebSession s) {
-        state.bank.rejectLoan(require(p, "loanId"));
+        requireFullAdmin(s);
+        String loanId = require(p, "loanId");
+        state.bank.rejectLoan(loanId);
+        state.bank.logAudit(s.username, s.staffRole, "REJECT_LOAN", loanId);
         persistQuietly();
         return Json.map("ok", true);
     }
@@ -418,33 +594,98 @@ public class WebServer {
 
     private static Map<String, Object> handlePayrollAdd(HttpExchange ex, Map<String, String> p, WebSession s)
             throws AccountNotFoundException {
+        requireFullAdmin(s);
         Employee emp = state.bank.addEmployee(
                 require(p, "accountNumber"),
-                require(p, "employerName"),
+                require(p, "employerAccountNumber"),
                 require(p, "position"),
                 parseDouble(require(p, "monthlySalary")));
+        state.bank.logAudit(s.username, s.staffRole, "ADD_EMPLOYEE", emp.getEmployeeId() + " -> " + emp.getAccountNumber());
         persistQuietly();
         return Json.map("ok", true, "employee", employeeJson(emp));
     }
 
     private static Map<String, Object> handlePayrollRemove(HttpExchange ex, Map<String, String> p, WebSession s) {
-        state.bank.removeEmployee(require(p, "employeeId"));
+        requireFullAdmin(s);
+        String employeeId = require(p, "employeeId");
+        state.bank.removeEmployee(employeeId);
+        state.bank.logAudit(s.username, s.staffRole, "REMOVE_EMPLOYEE", employeeId);
         persistQuietly();
         return Json.map("ok", true);
     }
 
     private static Map<String, Object> handlePayrollToggle(HttpExchange ex, Map<String, String> p, WebSession s) {
-        state.bank.toggleEmployeeActive(require(p, "employeeId"));
+        requireFullAdmin(s);
+        String employeeId = require(p, "employeeId");
+        state.bank.toggleEmployeeActive(employeeId);
+        state.bank.logAudit(s.username, s.staffRole, "TOGGLE_EMPLOYEE", employeeId);
         persistQuietly();
         return Json.map("ok", true);
     }
 
     private static Map<String, Object> handlePayrollRun(HttpExchange ex, Map<String, String> p, WebSession s) {
-        List<Payslip> results = state.bank.runPayroll();
+        requireFullAdmin(s);
+        PayrollRunResult result = state.bank.runPayroll();
+        state.bank.logAudit(s.username, s.staffRole, "RUN_PAYROLL",
+                result.getPaid().size() + " paid, " + result.getSkipped().size() + " skipped");
         persistQuietly();
+        List<Object> paid = new ArrayList<>();
+        for (Payslip ps : result.getPaid()) paid.add(payslipJson(ps));
+        List<Object> skipped = new ArrayList<>();
+        for (PayrollRunResult.Skipped sk : result.getSkipped()) {
+            skipped.add(Json.map("employeeId", sk.employeeId, "employeeName", sk.employeeName, "reason", sk.reason));
+        }
+        return Json.map("ok", true, "paidCount", paid.size(), "skippedCount", skipped.size(),
+                "payslips", paid, "skipped", skipped);
+    }
+
+    // -------------------------------------------------------- staff handlers
+
+    private static Map<String, Object> handleStaffList(HttpExchange ex, Map<String, String> p, WebSession s) {
+        requireFullAdmin(s);
         List<Object> list = new ArrayList<>();
-        for (Payslip ps : results) list.add(payslipJson(ps));
-        return Json.map("ok", true, "count", results.size(), "payslips", list);
+        for (Admin a : state.bank.getAllAdmins()) {
+            list.add(Json.map("username", a.getUsername(), "role", a.getRole().name()));
+        }
+        return Json.map("ok", true, "staff", list);
+    }
+
+    private static Map<String, Object> handleStaffAdd(HttpExchange ex, Map<String, String> p, WebSession s) {
+        requireFullAdmin(s);
+        String role = require(p, "role").toUpperCase();
+        StaffRole staffRole;
+        try {
+            staffRole = StaffRole.valueOf(role);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Role must be TELLER or ADMIN.");
+        }
+        Admin a = state.bank.addStaff(require(p, "username"), require(p, "password"), staffRole);
+        state.bank.logAudit(s.username, s.staffRole, "ADD_STAFF", a.getUsername() + " (" + a.getRole() + ")");
+        persistQuietly();
+        return Json.map("ok", true, "username", a.getUsername(), "role", a.getRole().name());
+    }
+
+    private static Map<String, Object> handleStaffRemove(HttpExchange ex, Map<String, String> p, WebSession s) {
+        requireFullAdmin(s);
+        String username = require(p, "username");
+        state.bank.removeStaff(username);
+        state.bank.logAudit(s.username, s.staffRole, "REMOVE_STAFF", username);
+        persistQuietly();
+        return Json.map("ok", true);
+    }
+
+    private static Map<String, Object> handleAuditLog(HttpExchange ex, Map<String, String> p, WebSession s) {
+        requireFullAdmin(s);
+        List<Object> list = new ArrayList<>();
+        for (AuditEntry e : state.bank.getRecentAuditLog(200)) {
+            list.add(Json.map(
+                    "actor", e.getActorUsername(),
+                    "role", e.getActorRole().name(),
+                    "action", e.getAction(),
+                    "details", e.getDetails(),
+                    "timestamp", e.getTimestamp().toString()));
+        }
+        return Json.map("ok", true, "entries", list);
     }
 
     // ------------------------------------------------------------- helpers
@@ -456,6 +697,7 @@ public class WebServer {
                 "owner", a.getOwnerUsername(),
                 "balance", a.getBalance(),
                 "frozen", a.isFrozen(),
+                "closed", a.isClosed(),
                 "openedOn", a.getOpenedOn().toString());
         if (a instanceof FixedDepositAccount) {
             m.put("maturityDate", ((FixedDepositAccount) a).getMaturityDate().toString());
@@ -499,6 +741,7 @@ public class WebServer {
                 "accountNumber", e.getAccountNumber(),
                 "customerUsername", e.getCustomerUsername(),
                 "employeeName", c != null ? c.getFullName() : e.getCustomerUsername(),
+                "employerAccountNumber", e.getEmployerAccountNumber(),
                 "employerName", e.getEmployerName(),
                 "position", e.getPosition(),
                 "monthlySalary", e.getMonthlySalary(),
@@ -531,6 +774,12 @@ public class WebServer {
         String v = p.get(key);
         if (v == null || v.trim().isEmpty()) throw new IllegalArgumentException("Missing required field: " + key);
         return v.trim();
+    }
+
+    private static void requireFullAdmin(WebSession s) {
+        if (s.staffRole != StaffRole.ADMIN) {
+            throw new IllegalStateException("This action requires full Admin access — Tellers cannot do this.");
+        }
     }
 
     private static double parseDouble(String s) {

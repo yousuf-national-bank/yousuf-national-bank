@@ -48,11 +48,12 @@ public class BankRepository {
     }
 
     private void saveAdmins(Connection c, Bank bank) throws SQLException {
-        String sql = "INSERT OR REPLACE INTO admins (username, password_hash) VALUES (?, ?)";
+        String sql = "INSERT OR REPLACE INTO admins (username, password_hash, role) VALUES (?, ?, ?)";
         try (PreparedStatement ps = c.prepareStatement(sql)) {
             for (Admin a : reflectAdmins(bank)) {
                 ps.setString(1, a.getUsername());
                 ps.setString(2, passwordHashOf(a));
+                ps.setString(3, a.getRole().name());
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -147,14 +148,17 @@ public class BankRepository {
 
         boolean anyAdmin = false;
         try (Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery("SELECT username, password_hash FROM admins")) {
+             ResultSet rs = st.executeQuery("SELECT username, password_hash, role FROM admins")) {
             while (rs.next()) {
-                bank.restoreAdmin(new Admin(rs.getString("username"), rs.getString("password_hash"), true));
+                StaffRole role;
+                try { role = StaffRole.valueOf(rs.getString("role")); } catch (Exception e) { role = StaffRole.ADMIN; }
+                bank.restoreAdmin(new Admin(rs.getString("username"), rs.getString("password_hash"), role, true));
                 anyAdmin = true;
             }
         }
         if (!anyAdmin) {
-            bank.restoreAdmin(new Admin("admin", "admin123")); // default admin on a brand-new database
+            bank.restoreAdmin(new Admin("admin", "admin123", StaffRole.ADMIN)); // default staff logins on a brand-new database
+            bank.restoreAdmin(new Admin("teller", "teller123", StaffRole.TELLER));
         }
 
         try (Statement st = c.createStatement();

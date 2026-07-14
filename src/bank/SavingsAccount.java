@@ -20,14 +20,15 @@ public class SavingsAccount extends Account {
     public double getInterestRate() { return INTEREST_RATE; }
 
     @Override
-    public void withdraw(double amount, String description) throws InvalidAmountException, InsufficientFundsException {
+    public void withdraw(TransactionType type, double amount, String description) throws InvalidAmountException, InsufficientFundsException {
         if (amount <= 0) throw new InvalidAmountException("Withdrawal amount must be positive.");
+        if (closed) throw new IllegalStateException("Account " + accountNumber + " is closed.");
         if (frozen) throw new IllegalStateException("Account " + accountNumber + " is frozen.");
         if (balance - amount < MIN_BALANCE) {
             throw new InsufficientFundsException(
                     "Withdrawal declined: savings accounts must keep a minimum balance of " + MIN_BALANCE);
         }
         balance -= amount;
-        log(TransactionType.WITHDRAWAL, amount, description);
+        log(type, amount, description);
     }
 }

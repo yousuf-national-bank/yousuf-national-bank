@@ -14,6 +14,7 @@ public abstract class Account implements Serializable {
     protected final String ownerUsername;
     protected double balance;
     protected boolean frozen;
+    protected boolean closed = false;
     protected final LocalDate openedOn;
     protected final List<Transaction> transactions = new ArrayList<>();
 
@@ -49,8 +50,12 @@ public abstract class Account implements Serializable {
         return 0.0;
     }
 
+    public boolean isClosed() { return closed; }
+    public void setClosed(boolean closed) { this.closed = closed; }
+
     public void deposit(double amount, String description) throws InvalidAmountException {
         if (amount <= 0) throw new InvalidAmountException("Deposit amount must be positive.");
+        if (closed) throw new IllegalStateException("Account " + accountNumber + " is closed.");
         if (frozen) throw new IllegalStateException("Account " + accountNumber + " is frozen.");
         balance += amount;
         log(TransactionType.DEPOSIT, amount, description);
@@ -59,20 +64,27 @@ public abstract class Account implements Serializable {
     /** A generic credit used for money the bank itself issues (salary, refunds, etc.), tagged with its own type. */
     public void credit(TransactionType type, double amount, String description) throws InvalidAmountException {
         if (amount <= 0) throw new InvalidAmountException("Credit amount must be positive.");
+        if (closed) throw new IllegalStateException("Account " + accountNumber + " is closed.");
         if (frozen) throw new IllegalStateException("Account " + accountNumber + " is frozen.");
         balance += amount;
         log(type, amount, description);
     }
 
     public void withdraw(double amount, String description) throws InvalidAmountException, InsufficientFundsException {
+        withdraw(TransactionType.WITHDRAWAL, amount, description);
+    }
+
+    /** Same withdrawal logic, but tags the transaction with a specific type (e.g. a payroll debit). */
+    public void withdraw(TransactionType type, double amount, String description) throws InvalidAmountException, InsufficientFundsException {
         if (amount <= 0) throw new InvalidAmountException("Withdrawal amount must be positive.");
+        if (closed) throw new IllegalStateException("Account " + accountNumber + " is closed.");
         if (frozen) throw new IllegalStateException("Account " + accountNumber + " is frozen.");
         if (balance - amount < -getOverdraftLimit()) {
             throw new InsufficientFundsException(
                     "Insufficient funds in " + accountNumber + ". Available: " + (balance + getOverdraftLimit()));
         }
         balance -= amount;
-        log(TransactionType.WITHDRAWAL, amount, description);
+        log(type, amount, description);
     }
 
     protected void log(TransactionType type, double amount, String description) {

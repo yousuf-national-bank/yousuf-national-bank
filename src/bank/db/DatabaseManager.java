@@ -48,7 +48,8 @@ public final class DatabaseManager {
         try (Statement st = connect().createStatement()) {
             st.execute("CREATE TABLE IF NOT EXISTS admins (" +
                     "username TEXT PRIMARY KEY," +
-                    "password_hash TEXT NOT NULL)");
+                    "password_hash TEXT NOT NULL," +
+                    "role TEXT NOT NULL DEFAULT 'ADMIN')");
 
             st.execute("CREATE TABLE IF NOT EXISTS customers (" +
                     "username TEXT PRIMARY KEY," +
